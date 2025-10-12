@@ -17,6 +17,8 @@ from rank_bm25 import BM25Okapi # <-- The new keyword search library
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
+FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend')
+
 database.init_db()
 
 # --- Startup Code ---
