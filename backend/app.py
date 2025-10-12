@@ -234,4 +234,7 @@ def get_profile():
     return jsonify({'profile_found': False})
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Get the port from the environment variable set by Hugging Face, default to 5000 for local
+    port = int(os.environ.get("PORT", 5000))
+    # Run the app on host 0.0.0.0 to make it publicly accessible
+    app.run(host='0.0.0.0', port=port, debug=False)
