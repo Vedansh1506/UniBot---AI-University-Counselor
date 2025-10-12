@@ -11,10 +11,15 @@ __pycache__/
 *.db
 *.sqlite3
 
-# Credentials and secrets
+# --- CORRECTED SECRET RULES ---
+# Ignore all .txt files...
+*.txt
+# ... EXCEPT for requirements.txt
+!requirements.txt
+
+# Ignore credentials and secrets
 credentials.json
 *.json
-*.txt
 
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
