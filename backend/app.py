@@ -18,8 +18,9 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 database.init_db()
 
 # --- Startup Code ---
-DB_PERSIST_DIR = os.path.join(os.path.dirname(__file__), '..', 'knowledge_base', 'chroma_db')
-CORPUS_FILE = os.path.join(DB_PERSIST_DIR, "corpus.pkl")
+DB_PERSIST_DIR = "/tmp/chroma_db"
+CORPUS_FILE = "/tmp/corpus.pkl"
+
 embedding_model = None; vector_db = None; llm = None; UNIVERSITY_RATINGS = {}
 
 # --- NEW: Load corpus for keyword search ---
