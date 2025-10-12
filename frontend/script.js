@@ -1,5 +1,3 @@
-// frontend/script.js
-
 document.addEventListener("DOMContentLoaded", () => {
     // --- AUTHENTICATION ELEMENTS ---
     const loginContainer = document.getElementById('login-container');
@@ -36,25 +34,16 @@ document.addEventListener("DOMContentLoaded", () => {
         'asking_research': 'Finally, do you have research experience? (Enter 1 for Yes, 0 for No)',
     };
 
-    // --- CORE FUNCTIONS ---
-
-    // **UPDATED**: addMessage now accepts a flag to show feedback buttons
     function addMessage(htmlContent, sender, showFeedback = false) {
         const messageElement = document.createElement('div');
         messageElement.classList.add('message', `${sender}-message`);
         messageElement.innerHTML = sender === 'bot' ? marked.parse(htmlContent) : htmlContent;
-
-        // **UPDATED**: Only add feedback buttons if the flag is true
         if (sender === 'bot' && showFeedback) {
             const feedbackContainer = document.createElement('div');
             feedbackContainer.classList.add('feedback-buttons');
-            feedbackContainer.innerHTML = `
-                <button class="feedback-btn" data-rating="1" title="Good response"><i class="fa-solid fa-thumbs-up"></i></button>
-                <button class="feedback-btn" data-rating="-1" title="Bad response"><i class="fa-solid fa-thumbs-down"></i></button>
-            `;
+            feedbackContainer.innerHTML = `<button class="feedback-btn" data-rating="1" title="Good response"><i class="fa-solid fa-thumbs-up"></i></button><button class="feedback-btn" data-rating="-1" title="Bad response"><i class="fa-solid fa-thumbs-down"></i></button>`;
             messageElement.appendChild(feedbackContainer);
         }
-
         chatBox.appendChild(messageElement);
         chatBox.scrollTop = chatBox.scrollHeight;
     }
@@ -71,24 +60,21 @@ document.addEventListener("DOMContentLoaded", () => {
     async function getAiResponse(message, profile = null) {
         showTypingIndicator();
         try {
-            const isQAResponse = !profile; // It's a Q&A response if no profile is passed
-            const response = await fetch('http://127.0.0.1:5000/chat', {
+            const isQAResponse = !profile;
+            const response = await fetch('/chat', { // REMOVED HARDCODED URL
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username: loggedInUsername, question: message, profile: profile }),
             });
             const result = await response.json();
             if (!response.ok) { throw new Error(result.error || `HTTP error!`); }
-            
-            // **UPDATED**: Pass the flag to addMessage
-            addMessage(result.answer, 'bot', isQAResponse); 
-            
+            addMessage(result.answer, 'bot', isQAResponse);
             if (conversationState !== 'idle') {
                 conversationState = 'idle';
                 userInput.placeholder = "Ask another question...";
             }
         } catch (error) {
-            addMessage(`Sorry, something went wrong. ${error.message}`, 'bot');
+            addMessage(`Could not connect to the server.`, 'bot');
         } finally {
             hideTypingIndicator();
         }
@@ -110,17 +96,14 @@ document.addEventListener("DOMContentLoaded", () => {
     async function handleFeedbackClick(event) {
         const button = event.target.closest('.feedback-btn');
         if (!button) return;
-
         const rating = parseInt(button.dataset.rating, 10);
         const feedbackContainer = button.parentElement;
         const messageElement = feedbackContainer.closest('.bot-message');
-        
         const answerContent = messageElement.cloneNode(true);
         answerContent.querySelector('.feedback-buttons').remove();
         const answer = answerContent.innerHTML;
-
         try {
-            const response = await fetch('http://127.0.0.1:5000/feedback', {
+            const response = await fetch('/feedback', { // REMOVED HARDCODED URL
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -137,7 +120,6 @@ document.addEventListener("DOMContentLoaded", () => {
         } catch (error) { console.error("Error submitting feedback:", error); }
     }
 
-    // --- (All other helper functions are the same as your version) ---
     function setAuthMode(isLogin) {
         isLoginMode = isLogin;
         formTitle.textContent = isLogin ? 'Login' : 'Register';
@@ -154,16 +136,14 @@ document.addEventListener("DOMContentLoaded", () => {
             authError.textContent = 'Username and password are required.';
             return;
         }
-
         const endpoint = isLoginMode ? '/login' : '/register';
         try {
-            const response = await fetch(`http://127.0.0.1:5000${endpoint}`, {
+            const response = await fetch(endpoint, { // REMOVED HARDCODED URL
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password }),
             });
             const result = await response.json();
-
             if (result.success) {
                 if (isLoginMode) {
                     initializeChat(username);
@@ -230,7 +210,7 @@ document.addEventListener("DOMContentLoaded", () => {
         conversationState = 'idle';
         userInput.placeholder = "Ask a question...";
         try {
-            const response = await fetch('http://127.0.0.1:5000/get_profile', {
+            const response = await fetch('/get_profile', { // REMOVED HARDCODED URL
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username: loggedInUsername }),
@@ -245,26 +225,21 @@ document.addEventListener("DOMContentLoaded", () => {
                 addMessage(greeting, 'bot');
             }
         } catch (error) {
-            addMessage(`Error: Could not load session. Details: ${error.message}`, 'bot');
+            addMessage(`Could not connect to the server.`, 'bot');
         }
     }
 
-    // --- EVENT LISTENERS ---
     toggleLink.addEventListener('click', (e) => {
         e.preventDefault();
         setAuthMode(!isLoginMode);
     });
-
     authBtn.addEventListener('click', authBtnClickHandler);
-    
-    // **NEW**: Event listeners for pressing Enter in auth fields
     usernameInput.addEventListener('keyup', (event) => {
         if (event.key === 'Enter') { authBtn.click(); }
     });
     passwordInput.addEventListener('keyup', (event) => {
         if (event.key === 'Enter') { authBtn.click(); }
     });
-
     chatBox.addEventListener('click', async function(event) {
         const targetId = event.target.id;
         if (targetId === 'start-rec-btn' || targetId === 'start-new-profile-btn') {
@@ -279,11 +254,9 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         handleFeedbackClick(event);
     });
-
     sendBtn.addEventListener('click', handleUserInput);
     userInput.addEventListener('keyup', (event) => { if (event.key === 'Enter') { handleUserInput(); } });
     logoutBtn.addEventListener('click', logout);
-    
     if(localStorage.getItem('theme')) { setTheme(localStorage.getItem('theme')); }
     themeToggle.addEventListener('change', () => setTheme(themeToggle.checked ? 'dark' : 'light'));
 });
