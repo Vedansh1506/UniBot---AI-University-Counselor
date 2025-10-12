@@ -5,4 +5,5 @@ langchain-ollama
 langchain-chroma
 langchain-huggingface
 langchain-groq
+langchain-community
 rank-bm25
