@@ -1,8 +1,12 @@
+# backend/database.py
+
 import sqlite3
 import json
 import bcrypt
 
-DATABASE_NAME = 'chatbot_memory.db'
+# --- THIS IS THE ONLY LINE THAT CHANGED ---
+# We now use an absolute path to a writable temporary directory
+DATABASE_NAME = '/tmp/chatbot_memory.db'
 
 def get_db_connection():
     conn = sqlite3.connect(DATABASE_NAME)
@@ -20,7 +24,7 @@ def init_db():
             profile TEXT
         )
     ''')
-    # --- NEW: Create feedback table ---
+    # Create feedback table
     conn.execute('''
         CREATE TABLE IF NOT EXISTS feedback (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,7 +38,6 @@ def init_db():
     conn.commit()
     conn.close()
 
-# --- NEW: Function to add feedback to the database ---
 def add_feedback(username, question, answer, rating):
     try:
         conn = get_db_connection()
@@ -51,7 +54,6 @@ def add_feedback(username, question, answer, rating):
 
 # --- (All other functions are the same) ---
 def register_user(username, password):
-    # ... (same as before)
     conn = get_db_connection()
     if conn.execute('SELECT id FROM users WHERE username = ?', (username,)).fetchone():
         conn.close()
@@ -63,7 +65,6 @@ def register_user(username, password):
     return True
 
 def check_user(username, password):
-    # ... (same as before)
     conn = get_db_connection()
     user = conn.execute('SELECT password FROM users WHERE username = ?', (username,)).fetchone()
     conn.close()
@@ -72,14 +73,12 @@ def check_user(username, password):
     return False
 
 def save_profile(username, profile_data):
-    # ... (same as before)
     conn = get_db_connection()
     conn.execute('UPDATE users SET profile = ? WHERE username = ?', (json.dumps(profile_data), username))
     conn.commit()
     conn.close()
 
 def load_profile(username):
-    # ... (same as before)
     conn = get_db_connection()
     user = conn.execute('SELECT profile FROM users WHERE username = ?', (username,)).fetchone()
     conn.close()
