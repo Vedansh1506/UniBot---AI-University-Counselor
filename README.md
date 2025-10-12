@@ -1,3 +1,12 @@
+---
+title: UniBot - AI University Counselor
+emoji: 🎓
+colorFrom: purple
+colorTo: indigo
+sdk: docker
+app_file: backend/app.py
+---
+
 # 🎓 AI University Counselor Chatbot
 
 A super-advanced, fully local AI chatbot designed to assist students with university admissions. This B.Tech project features a dual-function AI that provides personalized university recommendations and answers specific questions about admissions criteria using a Retrieval-Augmented Generation (RAG) system.
