@@ -3,6 +3,7 @@ import pickle
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import pandas as pd
+import time
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.prompts import ChatPromptTemplate
