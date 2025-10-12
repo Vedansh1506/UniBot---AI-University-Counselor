@@ -20,6 +20,7 @@ database.init_db()
 # --- Startup Code ---
 DB_PERSIST_DIR = "/tmp/chroma_db"
 CORPUS_FILE = "/tmp/corpus.pkl"
+DATA_SOURCE_DIR = os.path.join(os.path.dirname(__file__), '..', 'knowledge_base', 'data')
 
 embedding_model = None; vector_db = None; llm = None; UNIVERSITY_RATINGS = {}
 
@@ -27,15 +28,40 @@ embedding_model = None; vector_db = None; llm = None; UNIVERSITY_RATINGS = {}
 corpus = []
 bm25 = None
 try:
-    print("Loading local embedding model...")
+    if not os.path.exists(DB_PERSIST_DIR):
+        print("Vector database not found. Building a new one...")
+        start_time = time.time()
+        
+        # 1. Load the documents
+        loader = DirectoryLoader(
+            DATA_SOURCE_DIR, glob="**/*.md", loader_cls=TextLoader, loader_kwargs={'encoding': 'utf-8'}
+        )
+        documents = loader.load()
+        
+        # 2. Save the corpus for keyword search
+        with open(CORPUS_FILE, "wb") as f:
+            pickle.dump(documents, f)
+        
+        # 3. Create and persist the vector database
+        embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+        vector_db = Chroma.from_documents(
+            documents=documents, embedding=embedding_model, persist_directory=DB_PERSIST_DIR
+        )
+        end_time = time.time()
+        print(f"--- Vector DB built successfully in {end_time - start_time:.2f} seconds. ---")
+    else:
+        print("Existing vector database found. Loading...")
+
+    # --- Load all components as before ---
+    print("Loading embedding model...")
     embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-    print("Loading vector database for semantic search...")
+    
+    print("Loading vector database...")
     vector_db = Chroma(persist_directory=DB_PERSIST_DIR, embedding_function=embedding_model)
     
     print("Loading corpus for keyword search...")
     with open(CORPUS_FILE, "rb") as f:
         corpus = pickle.load(f)
-    
     tokenized_corpus = [doc.page_content.split(" ") for doc in corpus]
     bm25 = BM25Okapi(tokenized_corpus)
     
