@@ -1,6 +1,6 @@
 import os
 import pickle
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import pandas as pd
 import time
@@ -232,6 +232,19 @@ def get_profile():
     if profile:
         return jsonify({'profile_found': True, 'profile': profile})
     return jsonify({'profile_found': False})
+
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve(path):
+    """
+    This function serves the frontend files. It handles the homepage (index.html)
+    and any other files like style.css, script.js, etc.
+    """
+    if path != "" and os.path.exists(os.path.join(FRONTEND_DIR, path)):
+        return send_from_directory(FRONTEND_DIR, path)
+    else:
+        return send_from_directory(FRONTEND_DIR, 'index.html')
+
 
 if __name__ == '__main__':
     # Get the port from the environment variable set by Hugging Face, default to 5000 for local
