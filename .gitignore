@@ -1,0 +1,31 @@
+# Virtual Environment
+venv/
+.venv/
+env/
+
+# Python cache files
+__pycache__/
+*.pyc
+
+# Database files
+*.db
+*.sqlite3
+
+# Credentials and secrets
+credentials.json
+*.json
+*.txt
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Ignore the entire ChromaDB directory
+knowledge_base/chroma_db/
+
+# Ignore any saved model files
+model/
+*.joblib
+
+# OS-specific files
+.DS_Store
+Thumbs.db
