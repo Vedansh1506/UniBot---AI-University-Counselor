@@ -67,7 +67,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 body: JSON.stringify({ username: loggedInUsername, question: message, profile: profile }),
             });
             const result = await response.json();
-            if (!response.ok) { throw new Error(result.error || `HTTP error!`); }
+            if (!response.ok) {
+            // This will now grab the helpful error from our server
+                throw new Error(result.error || `An unknown error occurred.`);
+            }
             addMessage(result.answer, 'bot', isQAResponse);
             if (conversationState !== 'idle') {
                 conversationState = 'idle';
