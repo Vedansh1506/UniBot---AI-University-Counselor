@@ -202,10 +202,14 @@ def chat():
             answer = get_rag_response(user_message)
             return jsonify({'answer': answer})
     except Exception as e:
-    # This is the temporary change to see the real error
-        print(f"!!! DETAILED ERROR during /chat endpoint: {e}")
-    # We will now return the actual technical error to the frontend
-        return jsonify({"error": f"API Error: {str(e)}"}), 503
+    # This is the final change to see the error's type and details
+        error_type = type(e).__name__
+        error_details = repr(e)
+        print(f"!!! DETAILED ERROR TYPE: {error_type}, DETAILS: {error_details}")
+
+    # Return this detailed info to the frontend
+        detailed_error_message = f"API Error Type: {error_type}. Details: {error_details}"
+        return jsonify({"error": detailed_error_message}), 503
 
 @app.route('/feedback', methods=['POST'])
 def handle_feedback():
