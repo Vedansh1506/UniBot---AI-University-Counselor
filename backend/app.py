@@ -202,8 +202,10 @@ def chat():
             answer = get_rag_response(user_message)
             return jsonify({'answer': answer})
     except Exception as e:
-        print(f"An error occurred in the chat endpoint: {e}")
-        return jsonify({'error': str(e)}), 500
+        print(f"!!! ERROR during /chat endpoint: {e}")
+        # Instead of crashing, we now send a helpful error message to the frontend
+        error_message = "The AI model is currently busy or still waking up. Please wait about 30 seconds and try asking your question again. If it still fails, the model may be temporarily unavailable."
+        return jsonify({"error": error_message}), 503
 
 @app.route('/feedback', methods=['POST'])
 def handle_feedback():
