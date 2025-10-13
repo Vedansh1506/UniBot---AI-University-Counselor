@@ -6,7 +6,7 @@ import pandas as pd
 import time
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_huggingface import HuggingFaceEndpoint
+from langchain_community.llms import HuggingFaceHub
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_core.output_parsers import StrOutputParser
@@ -69,14 +69,14 @@ try:
     tokenized_corpus = [doc.page_content.split(" ") for doc in corpus]
     bm25 = BM25Okapi(tokenized_corpus)
     
-    print("Initializing LLM via Hugging Face Inference API...")
-    repo_id = "google/flan-t5-base"
-    llm = HuggingFaceEndpoint(
-        repo_id=repo_id,
-        huggingfacehub_api_token=os.environ.get('HF_TOKEN'), # Reads the secret token
-        temperature=0.7,
-        max_new_tokens=512
-    )
+    print("Initializing LLM via Hugging Face Hub...")
+# Use the HuggingFaceHub class with a stable, smaller model
+    repo_id = "google/flan-t5-small" 
+    llm = HuggingFaceHub(
+        repo_id=repo_id, 
+        huggingfacehub_api_token=os.environ.get('HF_TOKEN'),
+        model_kwargs={"temperature": 0.7, "max_length": 512}
+        )
     # ... (rest of the startup code is the same)
     print("Loading university QS Rankings data...")
     path = os.path.join(os.path.dirname(__file__), '..', 'data', 'qs_rankings.csv')
@@ -202,14 +202,10 @@ def chat():
             answer = get_rag_response(user_message)
             return jsonify({'answer': answer})
     except Exception as e:
-    # This is the final change to see the error's type and details
-        error_type = type(e).__name__
-        error_details = repr(e)
-        print(f"!!! DETAILED ERROR TYPE: {error_type}, DETAILS: {error_details}")
-
-    # Return this detailed info to the frontend
-        detailed_error_message = f"API Error Type: {error_type}. Details: {error_details}"
-        return jsonify({"error": detailed_error_message}), 503
+        print(f"!!! ERROR during /chat endpoint: {e}")
+    # Return the user-friendly message
+        error_message = "The AI model is currently busy or still waking up. Please wait about 30 seconds and try asking your question again. If it still fails, the model may be temporarily unavailable."
+        return jsonify({"error": error_message}), 503
 
 @app.route('/feedback', methods=['POST'])
 def handle_feedback():
