@@ -1,18 +1,18 @@
 import os
 import pickle
+import time
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import pandas as pd
-import time
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.llms import HuggingFaceHub
+# Using the modern, recommended class for the LLM
+from langchain_huggingface import HuggingFaceEndpoint
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_core.output_parsers import StrOutputParser
 import database
-import random
-from rank_bm25 import BM25Okapi # <-- The new keyword search library
+from rank_bm25 import BM25Okapi
+from langchain_community.document_loaders import DirectoryLoader, TextLoader
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
@@ -72,10 +72,11 @@ try:
     print("Initializing LLM via Hugging Face Hub...")
 # Use the HuggingFaceHub class with a stable, smaller model
     repo_id = "google/flan-t5-small" 
-    llm = HuggingFaceHub(
+    llm = HuggingFaceEndpoint(
         repo_id=repo_id, 
         huggingfacehub_api_token=os.environ.get('HF_TOKEN'),
-        model_kwargs={"temperature": 0.7, "max_length": 512}
+        temperature=0.7,
+        max_new_tokens=512
         )
     # ... (rest of the startup code is the same)
     print("Loading university QS Rankings data...")
