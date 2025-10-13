@@ -10,7 +10,6 @@ from langchain_huggingface import HuggingFaceEndpoint
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_core.output_parsers import StrOutputParser
-from langchain_ollama import ChatOllama
 import database
 import random
 from rank_bm25 import BM25Okapi # <-- The new keyword search library
