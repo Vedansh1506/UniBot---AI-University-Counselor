@@ -71,7 +71,7 @@ try:
     bm25 = BM25Okapi(tokenized_corpus)
     
     print("Initializing LLM via Hugging Face Inference API...")
-    repo_id = "microsoft/Phi-3-mini-4k-instruct"
+    repo_id = "google/flan-t5-large"
     llm = HuggingFaceEndpoint(
         repo_id=repo_id,
         huggingfacehub_api_token=os.environ.get('HF_TOKEN'), # Reads the secret token
