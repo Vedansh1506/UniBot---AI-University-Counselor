@@ -58,31 +58,36 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function getAiResponse(message, profile = null) {
-        showTypingIndicator();
-        try {
-            const isQAResponse = !profile;
-            const response = await fetch('/chat', { // REMOVED HARDCODED URL
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: loggedInUsername, question: message, profile: profile }),
-            });
-            const result = await response.json();
-            if (!response.ok) {
-            // This will now grab the helpful error from our server
-                throw new Error(result.error || `An unknown error occurred.`);
-            }
-            addMessage(result.answer, 'bot', isQAResponse);
-            if (conversationState !== 'idle') {
-                conversationState = 'idle';
-                userInput.placeholder = "Ask another question...";
-            }
-        } catch (error) {
-            addMessage(`Could not connect to the server.`, 'bot');
-        } finally {
-            hideTypingIndicator();
-        }
-    }
+    showTypingIndicator();
+    try {
+        const isQAResponse = !profile;
+        const response = await fetch('/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: loggedInUsername, question: message, profile: profile }),
+        });
 
+        const result = await response.json();
+        
+        if (!response.ok) {
+            // This will now grab the helpful error from our server
+            throw new Error(result.error || `An unknown error occurred.`);
+        }
+        
+        addMessage(result.answer, 'bot', isQAResponse);
+        
+        if (conversationState !== 'idle') {
+            conversationState = 'idle';
+            userInput.placeholder = "Ask another question...";
+        }
+    } catch (error) {
+        // --- THIS IS THE FIX ---
+        // Instead of a generic message, we now show the actual error.
+        addMessage(error.message, 'bot');
+    } finally {
+        hideTypingIndicator();
+    }
+}
     function handleUserInput() {
         const userText = userInput.value.trim();
         if (userText === '') return;
