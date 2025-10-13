@@ -6,6 +6,7 @@ WORKDIR /app
 
 # Copy the requirements file and install packages
 COPY requirements.txt .
+ENV CACHE_BUSTER=1
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of your project's code into the container
