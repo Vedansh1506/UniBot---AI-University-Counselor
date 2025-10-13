@@ -6,6 +6,7 @@ import pandas as pd
 import time
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEndpoint
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_core.output_parsers import StrOutputParser
@@ -69,8 +70,14 @@ try:
     tokenized_corpus = [doc.page_content.split(" ") for doc in corpus]
     bm25 = BM25Okapi(tokenized_corpus)
     
-    print("Initializing local LLM (Phi-3)...")
-    llm = ChatOllama(model="phi3")
+    print("Initializing LLM via Hugging Face Inference API...")
+    repo_id = "microsoft/Phi-3-mini-4k-instruct"
+    llm = HuggingFaceEndpoint(
+        repo_id=repo_id,
+        huggingfacehub_api_token=os.environ.get('HF_TOKEN'), # Reads the secret token
+        temperature=0.7,
+        max_new_tokens=512
+    )
     # ... (rest of the startup code is the same)
     print("Loading university QS Rankings data...")
     path = os.path.join(os.path.dirname(__file__), '..', 'data', 'qs_rankings.csv')
