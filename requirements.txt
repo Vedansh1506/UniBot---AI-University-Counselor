@@ -1,12 +1,20 @@
+# requirements.txt
+
+# --- Forces small CPU-only install to save space ---
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch
+# ---
+
+# --- App Libraries ---
 flask
 flask_cors
 pandas
+
+# --- LangChain & AI Libraries ---
 langchain-chroma
 langchain-huggingface
-langchain-groq
 langchain-community
 rank-bm25
 sentence-transformers
+transformers
 huggingface-hub

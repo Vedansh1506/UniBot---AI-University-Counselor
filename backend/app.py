@@ -1,3 +1,5 @@
+# backend/app.py
+
 import os
 import pickle
 import time
@@ -6,8 +8,8 @@ from flask_cors import CORS
 import pandas as pd
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
-# Using the modern, recommended class for the LLM
-from langchain_huggingface import HuggingFacePipeline
+# --- This is the self-contained AI model ---
+from langchain_huggingface import HuggingFacePipeline 
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 import database
@@ -16,68 +18,50 @@ from langchain_community.document_loaders import DirectoryLoader, TextLoader
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
-
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend')
 
+# --- Initialize the database ---
 database.init_db()
 
-# --- Startup Code ---
+# --- Deployment-ready paths (Corrected Spelling) ---
 DB_PERSIST_DIR = "/tmp/chroma_db"
 CORPUS_FILE = "/tmp/corpus.pkl"
 DATA_SOURCE_DIR = os.path.join(os.path.dirname(__file__), '..', 'knowledge_base', 'data')
 
 embedding_model = None; vector_db = None; llm = None; UNIVERSITY_RATINGS = {}
+corpus = []; bm25 = None
 
-# --- NEW: Load corpus for keyword search ---
-corpus = []
-bm25 = None
 try:
     if not os.path.exists(DB_PERSIST_DIR):
         print("Vector database not found. Building a new one...")
         start_time = time.time()
-        
-        # 1. Load the documents
-        loader = DirectoryLoader(
-            DATA_SOURCE_DIR, glob="**/*.md", loader_cls=TextLoader, loader_kwargs={'encoding': 'utf-8'}
-        )
+        loader = DirectoryLoader(DATA_SOURCE_DIR, glob="**/*.md", loader_cls=TextLoader, loader_kwargs={'encoding': 'utf-8'})
         documents = loader.load()
-        
-        # 2. Save the corpus for keyword search
-        with open(CORPUS_FILE, "wb") as f:
-            pickle.dump(documents, f)
-        
-        # 3. Create and persist the vector database
+        with open(CORPUS_FILE, "wb") as f: pickle.dump(documents, f)
         embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-        vector_db = Chroma.from_documents(
-            documents=documents, embedding=embedding_model, persist_directory=DB_PERSIST_DIR
-        )
+        vector_db = Chroma.from_documents(documents=documents, embedding=embedding_model, persist_directory=DB_PERSIST_DIR)
         end_time = time.time()
         print(f"--- Vector DB built successfully in {end_time - start_time:.2f} seconds. ---")
     else:
         print("Existing vector database found. Loading...")
 
-    # --- Load all components as before ---
     print("Loading embedding model...")
     embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-    
     print("Loading vector database...")
     vector_db = Chroma(persist_directory=DB_PERSIST_DIR, embedding_function=embedding_model)
-    
     print("Loading corpus for keyword search...")
-    with open(CORPUS_FILE, "rb") as f:
-        corpus = pickle.load(f)
+    with open(CORPUS_FILE, "rb") as f: corpus = pickle.load(f)
     tokenized_corpus = [doc.page_content.split(" ") for doc in corpus]
     bm25 = BM25Okapi(tokenized_corpus)
     
-    print("Initializing LLM via Hugging Face Hub...")
-# Use the HuggingFaceHub class with a stable, smaller model
-
+    print("Initializing local LLM pipeline (flan-t5-small)...")
+    # This downloads the small model onto the server's disk
     llm = HuggingFacePipeline.from_model_id(
         model_id="google/flan-t5-small",
         task="text2text-generation",
         pipeline_kwargs={"max_new_tokens": 512},
     )
-    # ... (rest of the startup code is the same)
+    
     print("Loading university QS Rankings data...")
     path = os.path.join(os.path.dirname(__file__), '..', 'data', 'qs_rankings.csv')
     df = pd.read_csv(path, encoding='latin-1')
@@ -85,87 +69,96 @@ try:
     df['RANK'] = df['RANK_2025'].astype(str).str.extract(r'(\d+)').astype(int)
     for _, row in df.iterrows():
         uni_name = row['Institution_Name'].lower().strip()
-        rank = row['RANK']; rating = 1
+        rank = row['RANK']; rating = 1;
         if rank > 50: rating = 2
         if rank > 150: rating = 3
         if rank > 300: rating = 4
         if rank > 500: rating = 5
         UNIVERSITY_RATINGS[uni_name] = rating
     print(f"--- System Ready. Hybrid Search pipeline is active. ---")
+
 except Exception as e:
     print(f"--- FATAL ERROR: Could not initialize. Error: {e} ---")
 
-# --- THIS IS THE NEW HYBRID SEARCH RAG FUNCTION ---
-def get_rag_response(user_question):
-    # 1. Semantic Search (finds by meaning)
-    semantic_results = vector_db.similarity_search_with_score(user_question, k=5)
-    
-    # 2. Keyword Search (finds by exact words)
-    query_tokens = user_question.split(" ")
-    keyword_scores = bm25.get_scores(query_tokens)
-    
-    # 3. Hybrid Fusion (Reciprocal Rank Fusion - combines results)
-    fused_scores = {}
-    for i, (doc, _) in enumerate(semantic_results):
-        doc_id = doc.metadata['source']
-        if doc_id not in fused_scores:
-            fused_scores[doc_id] = 0
-        fused_scores[doc_id] += 1 / (i + 60) # RRF scoring
 
-    # Find the index of the corpus documents from their source
-    corpus_doc_map = {doc.metadata['source']: i for i, doc in enumerate(corpus)}
-
-    for i, score in enumerate(keyword_scores):
-        if score > 0:
-            doc_id = corpus[i].metadata['source']
-            if doc_id not in fused_scores:
-                fused_scores[doc_id] = 0
-            # Find the rank of this doc in the keyword results to score it
-            keyword_rank = sorted(keyword_scores, reverse=True).index(score)
-            fused_scores[doc_id] += 1 / (keyword_rank + 60)
-
-    # Sort by the combined score to get the best documents
-    sorted_docs = sorted(fused_scores.items(), key=lambda item: item[1], reverse=True)
+# --- RAG Response Function ---
+def get_rag_response(question):
+    print(f"Processing RAG for question: {question}")
+    # 1. Keyword search
+    tokenized_query = question.lower().split(" ")
+    keyword_docs = bm25.get_top_n(tokenized_query, corpus, n=3)
     
-    # Get the top 3 documents from the fused results
-    top_docs_indices = []
-    for doc_id, _ in sorted_docs[:3]:
-        if doc_id in corpus_doc_map:
-            top_docs_indices.append(corpus_doc_map[doc_id])
-
-    if not top_docs_indices:
-        return "I could not find any information related to your question in my knowledge base."
+    # 2. Semantic search
+    semantic_docs = vector_db.similarity_search(question, k=3)
     
-    # Create the context from the top hybrid search results
-    context = "\n\n---\n\n".join([corpus[i].page_content for i in top_docs_indices])
+    # 3. Combine and deduplicate
+    combined_docs = {doc.metadata['source']: doc for doc in keyword_docs + semantic_docs}.values()
+    context = "\n\n".join([doc.page_content for doc in combined_docs])
     
-    # The prompt remains the same, but the context it receives is much better
-    prompt_template = """
-    You are a Q&A assistant. Use the following context to answer the question.
-    **Rules:**
-    1. Answer the question directly and concisely.
-    2. Do NOT include any information that is not directly related to the question.
-    3. Include all relevant details for the question asked.
-    4. If the answer is not in the context, say "I could not find a specific answer in my knowledge base."
-    **Context:** {context}
-    **Question:** {question}
-    **Precise Answer:**
+    # 4. Generate prompt
+    template = """
+    You are an expert university admissions counselor. Answer the user's question based ONLY on the context provided.
+    If the context does not contain the answer, say "I'm sorry, that information is not in my knowledge base."
+    
+    CONTEXT:
+    {context}
+    
+    QUESTION:
+    {question}
+    
+    ANSWER:
     """
-    prompt = ChatPromptTemplate.from_template(prompt_template)
+    prompt = ChatPromptTemplate.from_template(template)
     chain = prompt | llm | StrOutputParser()
-    return chain.invoke({"context": context, "question": user_question})
+    
+    return chain.invoke({"context": context, "question": question})
+
+# --- All API Routes ---
+
+@app.route('/register', methods=['POST'])
+def register():
+    data = request.json
+    username = data.get('username')
+    password = data.get('password')
+    if not username or not password:
+        return jsonify({'success': False, 'message': 'Username and password are required.'}), 400
+    if database.register_user(username, password):
+        return jsonify({'success': True})
+    else:
+        return jsonify({'success': False, 'message': 'Username already exists.'}), 400
+
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.json
+    username = data.get('username')
+    password = data.get('password')
+    if database.check_user(username, password):
+        return jsonify({'success': True})
+    else:
+        return jsonify({'success': False, 'message': 'Invalid username or password.'}), 401
+
+@app.route('/get_profile', methods=['POST'])
+def get_profile():
+    username = request.json.get('username')
+    profile = database.load_profile(username)
+    if profile:
+        return jsonify({'profile_found': True, 'profile': profile})
+    else:
+        return jsonify({'profile_found': False})
 
 @app.route('/chat', methods=['POST'])
 def chat():
-    if not llm or not vector_db: return jsonify({'error': 'The AI system is not ready.'}), 500
+    if not llm or not vector_db: 
+        return jsonify({'error': 'The AI system is not ready.'}), 503
+        
     try:
         data = request.get_json()
         username = data.get('username')
         user_message = data.get('question', '')
         user_profile_update = data.get('profile', None)
+
         if user_profile_update:
             database.save_profile(username, user_profile_update)
-            current_profile = database.load_profile(username)
             tier_1, tier_2, tier_3, tier_4, tier_5 = [], [], [], [], []
             for name, rating in UNIVERSITY_RATINGS.items():
                 if rating == 1: tier_1.append(name.title())
@@ -174,90 +167,56 @@ def chat():
                 elif rating == 4: tier_4.append(name.title())
                 elif rating == 5: tier_5.append(name.title())
             
-            # This is the AI-powered prompt that guides reasoning
             prompt_text = f"""
-            You are an expert AI university counselor. Your task is to generate a personalized list of university recommendations for a student.
-            **Here are your instructions:**
-            1. **Understand the Categories:**
-               - "Ambitious" universities are from Tier 1.
-               - "Target" universities are from Tier 2 and Tier 3.
-               - "Safe" universities are from Tiers 4 and 5.
-            2. **Your Task:**
-               - For the "Ambitious" category, select 7 universities from the Tier 1 list.
-               - For the "Target" category, select 7 universities from the Tier 2 and Tier 3 lists combined.
-               - For the "Safe" category, select 7 universities from the Tier 4 and Tier 5 lists combined.
-            3. **Output Format:**
-               - You MUST format the output with the markdown headings "## Ambitious", "## Target", and "## Safe".
-               - List the universities under each heading. Do not write anything else.
-            **Here is the data you must use:**
+            You are an expert AI university counselor. Your task is to generate a personalized list of university recommendations.
+            Your instructions:
+            1. For "Ambitious", select 7 universities from Tier 1.
+            2. For "Target", select 7 universities from Tier 2 and Tier 3.
+            3. For "Safe", select 7 universities from Tiers 4 and 5.
+            4. Format the output with markdown headings "## Ambitious", "## Target", and "## Safe".
+            5. List the universities under each heading. Do not write anything else.
+            
+            Here is the data:
             - Tier 1: {tier_1}
             - Tier 2: {tier_2}
             - Tier 3: {tier_3}
             - Tier 4: {tier_4}
             - Tier 5: {tier_5}
             """
-            answer = llm.invoke(prompt_text).content.strip()
+            # --- THIS IS THE FIX: No .content.strip() ---
+            answer = llm.invoke(prompt_text) 
             return jsonify({'answer': answer})
         else:
             answer = get_rag_response(user_message)
             return jsonify({'answer': answer})
+
     except Exception as e:
         print(f"!!! ERROR during /chat endpoint: {e}")
-    # Return the user-friendly message
-        error_message = "The AI model is currently busy or still waking up. Please wait about 30 seconds and try asking your question again. If it still fails, the model may be temporarily unavailable."
+        error_message = "The AI model is busy or had an error. Please try again."
         return jsonify({"error": error_message}), 503
 
 @app.route('/feedback', methods=['POST'])
-def handle_feedback():
-    try:
-        data = request.get_json()
-        username = data.get('username'); question = data.get('question')
-        answer = data.get('answer'); rating = data.get('rating')
-        if database.add_feedback(username, question, answer, rating):
-            return jsonify({'success': True, 'message': 'Feedback received.'})
-        else:
-            return jsonify({'success': False, 'message': 'Failed to save feedback.'}), 500
-    except Exception as e:
-        print(f"An error occurred in the feedback endpoint: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/register', methods=['POST'])
-def register():
-    data = request.get_json()
-    if database.register_user(data.get('username'), data.get('password')):
+def feedback():
+    data = request.json
+    username = data.get('username')
+    question = data.get('question')
+    answer = data.get('answer')
+    rating = data.get('rating')
+    
+    if database.save_feedback(username, question, answer, rating):
         return jsonify({'success': True})
-    return jsonify({'success': False, 'message': 'Username already exists.'})
+    else:
+        return jsonify({'success': False, 'message': 'Could not save feedback.'}), 500
 
-@app.route('/login', methods=['POST'])
-def login():
-    data = request.get_json()
-    if database.check_user(data.get('username'), data.get('password')):
-        return jsonify({'success': True})
-    return jsonify({'success': False, 'message': 'Invalid credentials.'})
-
-@app.route('/get_profile', methods=['POST'])
-def get_profile():
-    data = request.get_json()
-    profile = database.load_profile(data.get('username'))
-    if profile:
-        return jsonify({'profile_found': True, 'profile': profile})
-    return jsonify({'profile_found': False})
-
+# --- Routes to serve the frontend ---
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve(path):
-    """
-    This function serves the frontend files. It handles the homepage (index.html)
-    and any other files like style.css, script.js, etc.
-    """
     if path != "" and os.path.exists(os.path.join(FRONTEND_DIR, path)):
         return send_from_directory(FRONTEND_DIR, path)
     else:
         return send_from_directory(FRONTEND_DIR, 'index.html')
 
-
 if __name__ == '__main__':
-    # Get the port from the environment variable set by Hugging Face, default to 5000 for local
     port = int(os.environ.get("PORT", 5000))
-    # Run the app on host 0.0.0.0 to make it publicly accessible
     app.run(host='0.0.0.0', port=port, debug=False)
