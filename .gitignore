@@ -33,4 +33,6 @@ model/
 
 # OS-specific files
 .DS_Store
-Thumbs.db
+Thumbs.db"backend/chroma_db/" 
+"backend/corpus.pkl" 
+"backend/users.db" 
