@@ -7,7 +7,7 @@ import pandas as pd
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 # Using the modern, recommended class for the LLM
-from langchain_huggingface import HuggingFaceEndpoint
+from langchain_huggingface import HuggingFacePipeline
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 import database
@@ -71,13 +71,12 @@ try:
     
     print("Initializing LLM via Hugging Face Hub...")
 # Use the HuggingFaceHub class with a stable, smaller model
-    repo_id = "google/flan-t5-small" 
-    llm = HuggingFaceEndpoint(
-        repo_id=repo_id, 
-        huggingfacehub_api_token=os.environ.get('HF_TOKEN'),
-        temperature=0.7,
-        max_new_tokens=512
-        )
+
+    llm = HuggingFacePipeline.from_model_id(
+        model_id="google/flan-t5-small",
+        task="text2text-generation",
+        pipeline_kwargs={"max_new_tokens": 512},
+    )
     # ... (rest of the startup code is the same)
     print("Loading university QS Rankings data...")
     path = os.path.join(os.path.dirname(__file__), '..', 'data', 'qs_rankings.csv')
