@@ -1,7 +1,7 @@
 # backend/app.py
 import os
 import pickle
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory # <-- Make sure send_from_directory is imported
 from flask_cors import CORS
 import pandas as pd
 # --- REMOVED: Chroma and HuggingFaceEmbeddings ---
@@ -14,6 +14,11 @@ from rank_bm25 import BM25Okapi # <-- We are ONLY using this for search
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
+
+# --- THIS IS THE FIX ---
+# This variable was missing, causing the 'serve' function to crash
+FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend')
+
 
 # --- DEPLOYMENT-READY database path ---
 database.DATABASE_NAME = '/tmp/chatbot_memory.db'
@@ -53,7 +58,7 @@ try:
     df['RANK'] = df['RANK_2025'].astype(str).str.extract(r'(\d+)').astype(int)
     for _, row in df.iterrows():
         uni_name = row['Institution_Name'].lower().strip()
-        rank = row['RANK']; rating = 1
+        rank = row['RANK']; rating = 1;
         if rank > 50: rating = 2;
         if rank > 150: rating = 3;
         if rank > 300: rating = 4;
@@ -98,7 +103,6 @@ def get_rag_response(user_question):
     return answer
 
 # --- (All other routes: /chat, /feedback, /register, /login, /get_profile are PERFECT) ---
-# --- (The Python-based recommendation logic is lightweight and will work) ---
 @app.route('/chat', methods=['POST'])
 def chat():
     if not llm or not bm25: return jsonify({'error': 'The AI system is not ready.'}), 500
