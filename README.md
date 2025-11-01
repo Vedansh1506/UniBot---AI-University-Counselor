@@ -1,11 +1,4 @@
----
-title: UniBot - AI University Counselor
-emoji: 🎓
-colorFrom: purple
-colorTo: indigo
-sdk: docker
-app_file: backend/app.py
----
+
 
 # 🎓 AI University Counselor Chatbot
 
