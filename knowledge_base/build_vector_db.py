@@ -5,7 +5,7 @@ import re
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-# --- Use absolute paths based on the Docker WORKDIR /app ---
+# --- FIX: Use absolute paths based on the Docker WORKDIR /app ---
 DATA_SOURCE_DIR = '/app/knowledge_base/data'
 DB_DIR = '/app/knowledge_base/chroma_db'
 CORPUS_FILE = os.path.join(DB_DIR, "corpus.pkl")
