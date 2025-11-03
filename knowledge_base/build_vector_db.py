@@ -5,7 +5,7 @@ import re
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-# --- FIX: Use absolute paths based on the Docker WORKDIR /app ---
+# --- Use absolute paths based on the Docker WORKDIR /app ---
 DATA_SOURCE_DIR = '/app/knowledge_base/data'
 DB_DIR = '/app/knowledge_base/chroma_db'
 CORPUS_FILE = os.path.join(DB_DIR, "corpus.pkl")
@@ -23,7 +23,7 @@ def build_corpus():
 
     if not documents:
         print(f"--- ERROR: No documents found in {DATA_SOURCE_DIR}. Corpus will not be built. ---")
-        return # Stop if no documents
+        return 
 
     text_splitter = RecursiveCharacterTextSplitter(
         separators=["\n## ", "\n# ", "\n\n"],
@@ -32,7 +32,6 @@ def build_corpus():
     )
     docs = text_splitter.split_documents(documents)
 
-    # Add metadata to each chunk
     for doc in docs:
         source_path = doc.metadata.get("source", "")
         filename = os.path.basename(source_path)

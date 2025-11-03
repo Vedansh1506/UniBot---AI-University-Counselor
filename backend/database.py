@@ -107,7 +107,6 @@ def save_profile(username, profile_data):
 
 def load_profile(username):
     conn = get_db_connection()
-    # This now correctly selects from the 'profiles' table
     profile = conn.execute('SELECT * FROM profiles WHERE username = ?', (username,)).fetchone()
     conn.close()
     if profile:

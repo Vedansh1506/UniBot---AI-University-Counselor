@@ -159,7 +159,6 @@ def login():
 @app.route('/get_profile', methods=['POST'])
 def get_profile():
     data = request.get_json()
-    # This route will now use the correct load_profile function
     profile = database.load_profile(data.get('username'))
     if profile:
         return jsonify({'profile_found': True, 'profile': profile})
