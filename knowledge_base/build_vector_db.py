@@ -11,7 +11,7 @@ DB_DIR = '/app/knowledge_base/chroma_db'
 CORPUS_FILE = os.path.join(DB_DIR, "corpus.pkl")
 
 def build_corpus():
-    print("--- Building corpus for keyword search ---")
+    print(f"--- Building corpus from: {DATA_SOURCE_DIR} ---")
     
     loader = DirectoryLoader(
         DATA_SOURCE_DIR, 
@@ -20,10 +20,10 @@ def build_corpus():
         loader_kwargs={'encoding': 'utf-8'}
     )
     documents = loader.load()
-    
+
     if not documents:
         print(f"--- ERROR: No documents found in {DATA_SOURCE_DIR}. Corpus will not be built. ---")
-        return
+        return # Stop if no documents
 
     text_splitter = RecursiveCharacterTextSplitter(
         separators=["\n## ", "\n# ", "\n\n"],
@@ -32,6 +32,7 @@ def build_corpus():
     )
     docs = text_splitter.split_documents(documents)
 
+    # Add metadata to each chunk
     for doc in docs:
         source_path = doc.metadata.get("source", "")
         filename = os.path.basename(source_path)

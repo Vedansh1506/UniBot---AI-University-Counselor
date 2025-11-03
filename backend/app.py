@@ -25,7 +25,7 @@ CORPUS_FILE = os.path.join(DB_PERSIST_DIR, "corpus.pkl")
 llm = None; UNIVERSITY_RATINGS = {}
 corpus = []; bm25 = None
 try:
-    print("Loading corpus for keyword search...")
+    print(f"--- Loading corpus from {CORPUS_FILE} ---")
     with open(CORPUS_FILE, "rb") as f:
         corpus = pickle.load(f)
     
@@ -41,7 +41,6 @@ try:
     )
     
     print("Loading university QS Rankings data...")
-    # This path is relative to the app.py file, so it's correct
     path = os.path.join(os.path.dirname(__file__), '..', 'data', 'qs_rankings.csv')
     df = pd.read_csv(path, encoding='latin-1')
     df = df[df['Location'].str.contains("United States", na=False)].copy()
@@ -85,7 +84,6 @@ def get_rag_response(user_question):
     print("--- RAG: LLM answer received. ---")
     return answer
 
-# --- (All other routes are unchanged and correct) ---
 @app.route('/chat', methods=['POST'])
 def chat():
     if not llm or not bm25: return jsonify({'error': 'The AI system is not ready.'}), 500
@@ -161,6 +159,7 @@ def login():
 @app.route('/get_profile', methods=['POST'])
 def get_profile():
     data = request.get_json()
+    # This route will now use the correct load_profile function
     profile = database.load_profile(data.get('username'))
     if profile:
         return jsonify({'profile_found': True, 'profile': profile})
