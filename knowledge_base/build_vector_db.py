@@ -5,8 +5,9 @@ import re
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-DATA_SOURCE_DIR = os.path.join(os.path.dirname(__file__), 'data')
-DB_DIR = os.path.join(os.path.dirname(__file__), 'chroma_db')
+# --- FIX: Use absolute paths based on the Docker WORKDIR /app ---
+DATA_SOURCE_DIR = '/app/knowledge_base/data'
+DB_DIR = '/app/knowledge_base/chroma_db'
 CORPUS_FILE = os.path.join(DB_DIR, "corpus.pkl")
 
 def build_corpus():
@@ -19,8 +20,11 @@ def build_corpus():
         loader_kwargs={'encoding': 'utf-8'}
     )
     documents = loader.load()
+    
+    if not documents:
+        print(f"--- ERROR: No documents found in {DATA_SOURCE_DIR}. Corpus will not be built. ---")
+        return
 
-    # We still split the docs so the keyword search returns small chunks
     text_splitter = RecursiveCharacterTextSplitter(
         separators=["\n## ", "\n# ", "\n\n"],
         chunk_size=1000,
@@ -28,7 +32,6 @@ def build_corpus():
     )
     docs = text_splitter.split_documents(documents)
 
-    # --- Add the metadata to each chunk (for the RAG router) ---
     for doc in docs:
         source_path = doc.metadata.get("source", "")
         filename = os.path.basename(source_path)
@@ -36,7 +39,6 @@ def build_corpus():
         university_key = match.group(1) if match else os.path.splitext(filename)[0].lower()
         doc.metadata["university"] = university_key
     
-    # Save the documents (with metadata) for the BM25 keyword search
     os.makedirs(DB_DIR, exist_ok=True)
     with open(CORPUS_FILE, "wb") as f:
         pickle.dump(docs, f)
