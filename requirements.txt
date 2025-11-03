@@ -1,11 +1,8 @@
-# requirements.txt
 flask
 flask_cors
 pandas
-langchain-groq         # <-- Kept (The fast AI brain)
+langchain-groq
 langchain-community
-rank-bm25              # <-- Kept (The lightweight keyword search)
+langchain-text-splitters 
+rank-bm25
 bcrypt
-
-# --- REMOVED ---
-# (langchain-chroma, langchain-huggingface, sentence-transformers)
