@@ -1,12 +1,13 @@
 # knowledge_base/build_vector_db.py
 import os
 import pickle
+import re
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 DATA_SOURCE_DIR = os.path.join(os.path.dirname(__file__), 'data')
 DB_DIR = os.path.join(os.path.dirname(__file__), 'chroma_db')
-CORPUS_FILE = os.path.join(DB_DIR, "corpus.pkl") # We still save the corpus here
+CORPUS_FILE = os.path.join(DB_DIR, "corpus.pkl")
 
 def build_corpus():
     print("--- Building corpus for keyword search ---")
@@ -21,12 +22,21 @@ def build_corpus():
 
     # We still split the docs so the keyword search returns small chunks
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1500,
+        separators=["\n## ", "\n# ", "\n\n"],
+        chunk_size=1000,
         chunk_overlap=200
     )
     docs = text_splitter.split_documents(documents)
 
-    # Save the documents for the BM25 keyword search
+    # --- Add the metadata to each chunk (for the RAG router) ---
+    for doc in docs:
+        source_path = doc.metadata.get("source", "")
+        filename = os.path.basename(source_path)
+        match = re.search(r'\d*-(.*?)\.md', filename.lower())
+        university_key = match.group(1) if match else os.path.splitext(filename)[0].lower()
+        doc.metadata["university"] = university_key
+    
+    # Save the documents (with metadata) for the BM25 keyword search
     os.makedirs(DB_DIR, exist_ok=True)
     with open(CORPUS_FILE, "wb") as f:
         pickle.dump(docs, f)

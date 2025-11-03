@@ -1,9 +1,9 @@
 # backend/database.py
 import sqlite3
+import json
 import bcrypt
 
-# Use the deployment-ready path
-DATABASE_NAME = '/tmp/users.db'
+DATABASE_NAME = '/tmp/chatbot_memory.db' # Deployment-ready path
 
 def get_db_connection():
     conn = sqlite3.connect(DATABASE_NAME)
@@ -12,6 +12,7 @@ def get_db_connection():
 
 def init_db():
     conn = get_db_connection()
+    # Create users table
     conn.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -19,6 +20,7 @@ def init_db():
             password TEXT NOT NULL
         )
     ''')
+    # Create profiles table, linked to users
     conn.execute('''
         CREATE TABLE IF NOT EXISTS profiles (
             username TEXT PRIMARY KEY,
@@ -31,6 +33,7 @@ def init_db():
             FOREIGN KEY (username) REFERENCES users (username)
         )
     ''')
+    # Create feedback table
     conn.execute('''
         CREATE TABLE IF NOT EXISTS feedback (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,7 +48,6 @@ def init_db():
     conn.commit()
     conn.close()
 
-# Make sure all your other functions (register_user, check_user, etc.) are present
 def add_feedback(username, question, answer, rating):
     try:
         conn = get_db_connection()
@@ -59,18 +61,18 @@ def add_feedback(username, question, answer, rating):
     except sqlite3.Error as e:
         print(f"Database error: {e}")
         return False
-    
-# --- (All other functions are the same) ---
+
 def register_user(username, password):
     conn = get_db_connection()
-    if conn.execute('SELECT id FROM users WHERE username = ?', (username,)).fetchone():
+    try:
+        hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+        conn.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, hashed_password))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False # Username already exists
+    finally:
         conn.close()
-        return False
-    hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
-    conn.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, hashed_password))
-    conn.commit()
-    conn.close()
-    return True
 
 def check_user(username, password):
     conn = get_db_connection()
@@ -82,14 +84,32 @@ def check_user(username, password):
 
 def save_profile(username, profile_data):
     conn = get_db_connection()
-    conn.execute('UPDATE users SET profile = ? WHERE username = ?', (json.dumps(profile_data), username))
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute('''
+            INSERT OR REPLACE INTO profiles (username, gre_score, toefl_score, sop, lor, cgpa, research)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            username,
+            profile_data.get('gre_score'),
+            profile_data.get('toefl_score'),
+            profile_data.get('sop'),
+            profile_data.get('lor'),
+            profile_data.get('cgpa'),
+            profile_data.get('research')
+        ))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error saving profile: {e}")
+        return False
+    finally:
+        conn.close()
 
 def load_profile(username):
     conn = get_db_connection()
-    user = conn.execute('SELECT profile FROM users WHERE username = ?', (username,)).fetchone()
+    # This now correctly selects from the 'profiles' table
+    profile = conn.execute('SELECT * FROM profiles WHERE username = ?', (username,)).fetchone()
     conn.close()
-    if user and user['profile']:
-        return json.loads(user['profile'])
+    if profile:
+        return dict(profile) # Convert the sqlite3.Row object to a dict
     return None
