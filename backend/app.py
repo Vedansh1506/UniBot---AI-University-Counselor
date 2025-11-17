@@ -1,4 +1,3 @@
-# backend/app.py
 import os
 import pickle
 from flask import Flask, request, jsonify, send_from_directory
@@ -14,18 +13,27 @@ from rank_bm25 import BM25Okapi
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
+# Frontend path logic
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend')
+
+# Database setup
 database.DATABASE_NAME = '/tmp/chatbot_memory.db'
 database.init_db()
 
-# --- FIX: Use absolute paths based on the Docker WORKDIR /app ---
+# --- CRITICAL FIX: Use Absolute Docker Paths ---
 DB_PERSIST_DIR = '/app/knowledge_base/chroma_db'
 CORPUS_FILE = os.path.join(DB_PERSIST_DIR, "corpus.pkl")
 
 llm = None; UNIVERSITY_RATINGS = {}
 corpus = []; bm25 = None
+
 try:
-    print(f"--- Loading corpus from {CORPUS_FILE} ---")
+    print(f"--- ATTEMPTING TO LOAD: {CORPUS_FILE} ---")
+    
+    if not os.path.exists(CORPUS_FILE):
+        print("!!! ERROR: CORPUS FILE DOES NOT EXIST !!!")
+        raise FileNotFoundError(f"File not found: {CORPUS_FILE}")
+
     with open(CORPUS_FILE, "rb") as f:
         corpus = pickle.load(f)
     
@@ -33,7 +41,7 @@ try:
     tokenized_corpus = [doc.page_content.split(" ") for doc in corpus]
     bm25 = BM25Okapi(tokenized_corpus)
     
-    print("Initializing Groq LLM (Llama-3.1-8B-Instant)...")
+    print("Initializing Groq LLM...")
     llm = ChatGroq(
         model_name="llama-3.1-8b-instant", 
         temperature=0.7,
@@ -41,8 +49,9 @@ try:
     )
     
     print("Loading university QS Rankings data...")
-    path = os.path.join(os.path.dirname(__file__), '..', 'data', 'qs_rankings.csv')
-    df = pd.read_csv(path, encoding='latin-1')
+    # Use absolute path for CSV as well to be safe
+    csv_path = '/app/data/qs_rankings.csv'
+    df = pd.read_csv(csv_path, encoding='latin-1')
     df = df[df['Location'].str.contains("United States", na=False)].copy()
     df['RANK'] = df['RANK_2025'].astype(str).str.extract(r'(\d+)').astype(int)
     for _, row in df.iterrows():
@@ -53,37 +62,37 @@ try:
         if rank > 300: rating = 4;
         if rank > 500: rating = 5;
         UNIVERSITY_RATINGS[uni_name] = rating
-    print(f"--- System Ready. Keyword-Only RAG is active. ---")
+        
+    print(f"--- SYSTEM READY ---")
+    
 except Exception as e:
     print(f"--- FATAL ERROR: Could not initialize. Error: {e} ---")
 
-# --- RAG function (Now Keyword-Only) ---
+# --- RAG function ---
 def get_rag_response(user_question):
-    print(f"--- RAG: Searching (Keyword-Only) for '{user_question}' ---")
+    print(f"--- RAG: Searching for '{user_question}' ---")
     query_tokens = user_question.split(" ")
+    # Using BM25 for search (Lightweight)
     keyword_docs = bm25.get_top_n(query_tokens, corpus, n=3) 
+    
     if not keyword_docs:
         return "I'm sorry, that information is not in my knowledge base."
+        
     context = "\n\n---\n\n".join([doc.page_content for doc in keyword_docs])
+    
     prompt_template = """
     <|begin_of_text|><|start_header_id|>system<|end_header_id|>
-    You are a Q&A assistant. Use the following context to answer the question.
-    **Rules:**
-    1. Answer the question directly and concisely.
-    2. Do NOT include any information that is not directly related to the question.
-    3. Include all relevant details for the question asked.
-    4. If the answer is not in the context, say "I'm sorry, that information is not in my knowledge base."
+    You are a Q&A assistant. Use the provided context to answer the question.
+    If the answer is not in the context, say "I'm sorry, that information is not in my knowledge base."
     **Context:** {context}<|eot_id|><|start_header_id|>user<|end_header_id|>
     **Question:** {question}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
     **Precise Answer:**
     """
     prompt = ChatPromptTemplate.from_template(prompt_template)
     chain = prompt | llm | StrOutputParser()
-    print("--- RAG: Context found. Asking Groq LLM... ---")
-    answer = chain.invoke({"context": context, "question": user_question})
-    print("--- RAG: LLM answer received. ---")
-    return answer
+    return chain.invoke({"context": context, "question": user_question})
 
+# --- Routes ---
 @app.route('/chat', methods=['POST'])
 def chat():
     if not llm or not bm25: return jsonify({'error': 'The AI system is not ready.'}), 500
@@ -94,17 +103,20 @@ def chat():
         user_profile_update = data.get('profile', None)
         
         if user_profile_update:
-            print("--- Received profile update. Generating recommendations with Python logic. ---")
             database.save_profile(username, user_profile_update)
             gre = user_profile_update.get('gre_score', 300); cgpa = user_profile_update.get('cgpa', 7.0)
             research = user_profile_update.get('research', 0); sop = user_profile_update.get('sop', 'Average')
+            
+            # Python Logic for Recommendations
             user_score = (min(gre, 340) / 340.0) * 0.5 + (min(cgpa, 10.0) / 10.0) * 0.5 
             if research > 0: user_score += 0.05
             if sop.lower() == 'good': user_score += 0.02
             if sop.lower() == 'excellent': user_score += 0.04
             user_score = min(user_score, 1.0)
+            
             rating_map = { 1: 0.90, 2: 0.80, 3: 0.70, 4: 0.60, 5: 0.50 } 
             ambitious, target, safe = [], [], []
+            
             for uni, rating in UNIVERSITY_RATINGS.items():
                 uni_required_score = rating_map.get(rating, 0)
                 if uni_required_score > user_score and (uni_required_score - user_score) < 0.15:
@@ -113,6 +125,7 @@ def chat():
                     target.append(uni.title())
                 elif uni_required_score < (user_score - 0.07):
                     safe.append(uni.title())
+            
             answer = "Here are your personalized recommendations based on your profile:\n\n"
             answer += "## Ambitious\n" + ("".join(f"- {uni}\n" for uni in ambitious[:7]) if ambitious else "- (None found)\n")
             answer += "\n## Target\n" + ("".join(f"- {uni}\n" for uni in target[:7]) if target else "- (None found)\n")
@@ -123,23 +136,19 @@ def chat():
             return jsonify({'answer': answer})
             
     except Exception as e:
-        print(f"An error occurred in the chat endpoint: {e}")
+        print(f"Error: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/feedback', methods=['POST'])
 def handle_feedback():
     try:
         data = request.get_json()
-        username = data.get('username')
-        question = data.get('question')
-        answer = data.get('answer')
-        rating = data.get('rating')
+        username = data.get('username'); question = data.get('question')
+        answer = data.get('answer'); rating = data.get('rating')
         if database.add_feedback(username, question, answer, rating):
-            return jsonify({'success': True, 'message': 'Feedback received.'})
-        else:
-            return jsonify({'success': False, 'message': 'Failed to save feedback.'}), 500
+            return jsonify({'success': True})
+        return jsonify({'success': False}), 500
     except Exception as e:
-        print(f"An error occurred in the feedback endpoint: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/register', methods=['POST'])
@@ -164,7 +173,6 @@ def get_profile():
         return jsonify({'profile_found': True, 'profile': profile})
     return jsonify({'profile_found': False})
 
-# --- Serve Frontend (deployment-ready) ---
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve(path):
